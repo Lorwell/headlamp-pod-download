@@ -1,0 +1,66 @@
+{
+  "name": "headlamp-pod-download",
+  "version": "0.1.0",
+  "description": "Headlamp plugin: download a single file from a running Kubernetes pod.",
+  "license": "MIT",
+  "author": "Lorwell",
+  "homepage": "https://github.com/Lorwell/headlamp-pod-download#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lorwell/headlamp-pod-download.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Lorwell/headlamp-pod-download/issues"
+  },
+  "private": true,
+  "keywords": [
+    "headlamp",
+    "headlamp-plugin",
+    "kubernetes",
+    "kubernetes-ui",
+    "pod",
+    "download"
+  ],
+  "scripts": {
+    "start": "headlamp-plugin start",
+    "build": "headlamp-plugin build",
+    "package": "headlamp-plugin package",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint --cache -c package.json --max-warnings 0 --ext .js,.ts,.tsx src/",
+    "lint:fix": "eslint --cache -c package.json --fix --ext .js,.ts,.tsx src/",
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs",
+    "test:watch": "vitest -c node_modules/@kinvolk/headlamp-plugin/config/vite.config.mjs"
+  },
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "eslintConfig": {
+    "extends": [
+      "@headlamp-k8s",
+      "prettier",
+      "plugin:jsx-a11y/recommended"
+    ]
+  },
+  "overrides": {
+    "typescript": "5.6.2"
+  },
+  "devDependencies": {
+    "@kinvolk/headlamp-plugin": "0.14.0",
+    "@mui/material": "^5.15.14",
+    "@testing-library/dom": "^10.1.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@swc/core",
+      "msw"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,27 @@
+# Example patch for a Headlamp Deployment.
+#
+# Merge this into your own Headlamp manifest (or apply it with
+# `kubectl patch deployment headlamp --type=strategic --patch-file ...`).
+# The ConfigMap is created by deploy/install.sh; create it yourself when you
+# manage the Deployment declaratively:
+#
+#   kubectl -n <namespace> create configmap headlamp-pod-download-plugin \
+#     --from-file=main.js=dist/main.js \
+#     --from-file=package.json=package.json \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# The plugin directory name (`headlamp-pod-download` below) must match the
+# `name` field in package.json.
+spec:
+  template:
+    spec:
+      containers:
+        - name: headlamp
+          volumeMounts:
+            - name: headlamp-pod-download
+              mountPath: /headlamp/plugins/headlamp-pod-download
+              readOnly: true
+      volumes:
+        - name: headlamp-pod-download
+          configMap:
+            name: headlamp-pod-download-plugin
