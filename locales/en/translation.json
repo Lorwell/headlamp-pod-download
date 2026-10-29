@@ -1,6 +1,10 @@
 {
   "Download file": "Download file",
-  "Enter the absolute path of one file inside a container (up to {{size}}). The container needs a base64 binary and your account needs pods/exec. Directories are not supported.": "Enter the absolute path of one file inside a container (up to {{size}}). The container needs a base64 binary and your account needs pods/exec. Directories are not supported.",
+  "Enter the absolute path of one file inside a container. The container needs a base64 binary and your account needs pods/exec. Directories are not supported.": "Enter the absolute path of one file inside a container. The container needs a base64 binary and your account needs pods/exec. Directories are not supported.",
+  "Streamed directly to disk, no practical size limit.": "Streamed directly to disk, no practical size limit.",
+  "Up to {{size}} (kept in browser memory).": "Up to {{size}} (kept in browser memory).",
+  "Could not open the save dialog.": "Could not open the save dialog.",
+  "Failed to write the file to disk.": "Failed to write the file to disk.",
   "Container": "Container",
   "File path": "File path",
   "Download": "Download",

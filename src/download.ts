@@ -1,19 +1,29 @@
 /**
  * Download a single file from a running container.
  *
- * The file is streamed out of the container with `base64 <path>` over the
- * Kubernetes exec websocket that Headlamp already proxies, and assembled in the
- * browser into a Blob. No extra backend, no cluster writes.
+ * The file is read with `base64 <path>` over the Kubernetes exec websocket that
+ * Headlamp already proxies. Two destinations are supported:
+ *
+ * - a `StreamSink` (File System Access API): bytes are decoded per frame and
+ *   written straight to disk, so the file size is not limited by browser memory;
+ * - otherwise the parts are collected and saved as a Blob, which is bounded by
+ *   `MAX_BUFFERED_BYTES`.
+ *
+ * No extra backend, no cluster writes.
  */
 
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
 import { describeExecError, suggestFilename } from './format';
-import { base64ToBytes, parseFrame } from './frames';
+import { Base64StreamDecoder, parseFrame } from './frames';
+import type { StreamSink } from './sink';
 
 export type PodLike = InstanceType<typeof K8s.ResourceClasses.Pod>;
 
-/** Upper bound for one download. Larger files should be fetched with `kubectl cp`. */
-export const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+/** Largest file that can be assembled in browser memory (no File System Access API). */
+export const MAX_BUFFERED_BYTES = 200 * 1024 * 1024;
+
+/** Safety valve for streamed downloads; the real limit is the user's disk. */
+export const MAX_STREAM_BYTES = 5 * 1024 * 1024 * 1024;
 
 /** The container stopped sending data for this long: treat it as a stall. */
 const IDLE_TIMEOUT_MS = 60_000;
@@ -28,6 +38,8 @@ export interface DownloadRequest {
   pod: PodLike;
   container: string;
   path: string;
+  /** When set, decoded bytes are written here instead of being buffered. */
+  sink?: StreamSink;
   onProgress?: (receivedBytes: number) => void;
   onDone?: (result: { filename: string; bytes: number }) => void;
   onError?: (message: string) => void;
@@ -57,8 +69,7 @@ export function validatePath(path: string): string | null {
   return null;
 }
 
-function saveBlob(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -72,7 +83,7 @@ function saveBlob(bytes: Uint8Array, filename: string): void {
 }
 
 export function downloadPodFile(request: DownloadRequest): DownloadHandle {
-  const { pod, container, path, onProgress, onDone, onError } = request;
+  const { pod, container, path, sink, onProgress, onDone, onError } = request;
   const target = (path ?? '').trim();
 
   const invalid = validatePath(target);
@@ -81,10 +92,15 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
     return { cancel: () => undefined };
   }
 
+  const limit = sink ? MAX_STREAM_BYTES : MAX_BUFFERED_BYTES;
+  const decoder = new Base64StreamDecoder();
+  const chunks: Uint8Array[] = [];
+
   let finished = false;
-  let base64 = '';
+  let writeFailed = false;
   let stderr = '';
   let received = 0;
+  let pendingWrite: Promise<void> = Promise.resolve();
   let handle: ReturnType<PodLike['exec']> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -121,10 +137,23 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
     finished = true;
     cleanup();
     stopStream();
+    void sink?.abort();
     onError?.(message);
   }
 
-  function complete() {
+  /** Write one decoded part, keeping the order even when the sink is async. */
+  function writePart(bytes: Uint8Array) {
+    if (!sink) {
+      chunks.push(bytes);
+      return;
+    }
+    pendingWrite = pendingWrite.then(() => sink.write(bytes)).catch(() => {
+      writeFailed = true;
+      fail('Failed to write the file to disk.');
+    });
+  }
+
+  async function complete() {
     if (finished) {
       return;
     }
@@ -132,17 +161,40 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
     cleanup();
     stopStream();
 
-    let bytes: Uint8Array;
     try {
-      bytes = base64ToBytes(base64);
-    } catch {
-      onError?.('The container returned data that could not be decoded.');
-      return;
-    }
+      await pendingWrite;
+      if (writeFailed) {
+        return;
+      }
 
-    const filename = suggestFilename(target);
-    saveBlob(bytes, filename);
-    onDone?.({ filename, bytes: bytes.length });
+      let tail: Uint8Array;
+      try {
+        tail = decoder.flush();
+      } catch {
+        onError?.('The container returned data that could not be decoded.');
+        return;
+      }
+
+      if (tail.length > 0) {
+        received += tail.length;
+        onProgress?.(received);
+        if (sink) {
+          await sink.write(tail);
+        } else {
+          chunks.push(tail);
+        }
+      }
+
+      const filename = suggestFilename(target);
+      if (sink) {
+        await sink.close();
+      } else {
+        saveBlob(new Blob(chunks as BlobPart[], { type: 'application/octet-stream' }), filename);
+      }
+      onDone?.({ filename, bytes: received });
+    } catch {
+      onError?.('Failed to write the file to disk.');
+    }
   }
 
   function handleStatus(text: string) {
@@ -155,7 +207,7 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
     }
 
     if (status.status === 'Success') {
-      complete();
+      void complete();
       return;
     }
     fail(describeExecError(stderr || status.message || ''));
@@ -176,18 +228,24 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
 
     switch (frame.channel) {
       case 'stdout': {
-        // GNU base64 wraps at 76 columns, BusyBox does not wrap. Whitespace is
-        // not part of the payload, so dropping it per frame is safe.
-        const chunk = frame.text.replace(/[\r\n\t ]/g, '');
-        if (chunk === '') {
+        let bytes: Uint8Array;
+        try {
+          bytes = decoder.push(frame.text);
+        } catch {
+          fail('The container returned data that could not be decoded.');
           return;
         }
-        base64 += chunk;
-        received = Math.floor((base64.length * 3) / 4);
-        onProgress?.(received);
-        if (received > MAX_DOWNLOAD_BYTES) {
-          fail('File is too large to download in the browser. Use `kubectl cp` for large files.');
+        if (bytes.length === 0) {
+          return;
         }
+
+        received += bytes.length;
+        onProgress?.(received);
+        if (received > limit) {
+          fail('File is too large to download in the browser. Use `kubectl cp` for large files.');
+          return;
+        }
+        writePart(bytes);
         return;
       }
       case 'stderr': {

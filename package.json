@@ -1,6 +1,6 @@
 {
   "name": "headlamp-pod-download",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Headlamp plugin: download a single file from a running Kubernetes pod.",
   "license": "MIT",
   "author": "Lorwell",

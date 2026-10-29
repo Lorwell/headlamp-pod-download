@@ -12,27 +12,29 @@ Headlamp can open a shell in a container, but it cannot copy files out of it. Th
 ## Features
 
 - **Download icon** in the Pod details header, placed right after the terminal action.
+- **Large files**: streamed directly to disk in Chrome/Edge (no practical limit), in-memory fallback of 200 MiB elsewhere.
 - Clicking the icon opens a **dialog** with the container picker and the file path field; the page never navigates away.
 - Container picker when the pod has more than one container.
 - Progress indicator and a **Cancel** button while a file is streaming.
 - Clear error messages for the usual failures: missing file, permission denied, directory, distroless image without `base64`.
 - **i18n**: English and 简体中文, following Headlamp's language setting (add another locale by dropping `locales/<lang>/translation.json`).
-- Hard limits: single regular file, up to **50 MiB**.
+- Single regular file. With the File System Access API (Chrome/Edge) the bytes are **streamed straight to disk**, so there is no practical size limit; other browsers fall back to an in-memory download capped at **200 MiB**.
 - No new backend and **no new RBAC**: the plugin uses `pods/exec` through Headlamp's existing API proxy, with the permissions of the logged-in user.
 
 ## How it works
 
 ```
-Pod page  ──►  base64 <path>  ──►  Kubernetes exec websocket
-                                        (proxied by Headlamp)
-   browser  ◄──  stdout frames  ◄──  base64 text
+Pod page ──► base64 <path> ──► Kubernetes exec websocket (proxied by Headlamp)
+   browser ◄── stdout frames ◄── base64 text
       │
-      └── decode → Blob → save with the original file name
+      ├─ File System Access API ─► decode chunk by chunk ─► write to disk
+      └─ otherwise ─────────────► decode chunk by chunk ─► Blob ─► save
 ```
 
-The plugin calls `pod.exec()` from the Headlamp plugin API, strips the exec
-channel prefixes from the websocket frames, decodes the base64 payload and hands
-a `Blob` to the browser. Nothing is written to the cluster and the file never
+The plugin calls `pod.exec()` from the Headlamp plugin API and strips the exec
+channel prefixes from the websocket frames. Each base64 chunk is decoded and
+either written straight into the file the user picked (constant memory) or
+collected into a `Blob`. Nothing is written to the cluster and the file never
 touches Headlamp's disk.
 
 ## Requirements
@@ -76,9 +78,14 @@ and removal.
 ## Limitations
 
 - Only single regular files. For directories use `kubectl cp -r pod:/dir ./dir`.
-- Maximum 50 MiB per download, because the file is assembled in browser memory.
-  Larger files are better served by `kubectl cp`, `kubectl exec ... tar`, or a
-  dedicated object store.
+- **Chromium browsers** (Chrome, Edge) stream to disk through
+  `showSaveFilePicker()`, so multi-GB files work as long as the disk has room.
+  The plugin keeps a 5 GiB safety valve.
+- **Other browsers** (Firefox, Safari) have no File System Access API, so the file
+  is assembled in memory and capped at **200 MiB**.
+- Very large files are still better moved with `kubectl cp`, `kubectl exec ...
+  tar`, or a dedicated object store: the whole transfer goes through the
+  Kubernetes API server and Headlamp's websocket proxy.
 - No upload, no resume, no history.
 - The plugin needs a shell-free `base64` call, so images without it fail with an
   explicit message.

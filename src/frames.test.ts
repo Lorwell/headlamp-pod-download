@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { base64ToBytes, parseFrame } from './frames';
+import { Base64StreamDecoder, base64ToBytes, parseFrame } from './frames';
 
 const encoder = new TextEncoder();
 
@@ -75,5 +75,45 @@ describe('base64ToBytes', () => {
 
   it('throws on invalid base64', () => {
     expect(() => base64ToBytes('not base64!')).toThrow();
+  });
+});
+
+describe('Base64StreamDecoder', () => {
+  it('decodes chunks that split base64 groups', () => {
+    const decoder = new Base64StreamDecoder();
+    const encoded = btoa('hello world');
+    const parts: string[] = [];
+    for (let i = 0; i < encoded.length; i += 3) {
+      const bytes = decoder.push(encoded.slice(i, i + 3));
+      if (bytes.length) {
+        parts.push(new TextDecoder().decode(bytes));
+      }
+    }
+    const tail = decoder.flush();
+    if (tail.length) {
+      parts.push(new TextDecoder().decode(tail));
+    }
+    expect(parts.join('')).toBe('hello world');
+  });
+
+  it('ignores the line wrapping added by coreutils', () => {
+    const decoder = new Base64StreamDecoder();
+    const bytes = decoder.push('aGVs\nbG8g\nd29y\nbGQ=');
+    expect(new TextDecoder().decode(bytes)).toBe('hello world');
+    expect(decoder.flush().length).toBe(0);
+  });
+
+  it('round trips binary data', () => {
+    const original = new Uint8Array([0x00, 0x01, 0xff, 0x80, 0x41]);
+    let binary = '';
+    original.forEach(byte => {
+      binary += String.fromCharCode(byte);
+    });
+
+    const decoder = new Base64StreamDecoder();
+    const first = decoder.push(btoa(binary).slice(0, 4));
+    const second = decoder.push(btoa(binary).slice(4));
+    const all = new Uint8Array([...first, ...second, ...decoder.flush()]);
+    expect(Array.from(all)).toEqual(Array.from(original));
   });
 });

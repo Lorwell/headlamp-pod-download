@@ -117,3 +117,43 @@ export function base64ToBytes(input: string): Uint8Array {
 export function isEmptyFrame(frame: Frame | null): boolean {
   return frame === null || (frame.channel === 'unknown' && frame.text === '');
 }
+
+const EMPTY = new Uint8Array(0);
+
+/**
+ * Decode a base64 byte stream that arrives in arbitrary chunks.
+ *
+ * Each websocket frame can split a 4 character base64 group, so incomplete
+ * groups are carried over to the next call. This keeps the memory used per
+ * frame constant, which is what allows very large downloads.
+ */
+export class Base64StreamDecoder {
+  private carry = '';
+
+  push(text: string): Uint8Array {
+    const clean = text.replace(/[\r\n\t ]/g, '');
+    if (clean === '') {
+      return EMPTY;
+    }
+
+    this.carry += clean;
+    const usable = this.carry.length - (this.carry.length % 4);
+    if (usable === 0) {
+      return EMPTY;
+    }
+
+    const chunk = this.carry.slice(0, usable);
+    this.carry = this.carry.slice(usable);
+    return base64ToBytes(chunk);
+  }
+
+  /** Decode whatever is left. Throws when the container produced invalid data. */
+  flush(): Uint8Array {
+    if (this.carry === '') {
+      return EMPTY;
+    }
+    const rest = this.carry;
+    this.carry = '';
+    return base64ToBytes(rest);
+  }
+}
