@@ -125,6 +125,15 @@ CONFIGMAP_MANIFEST=$(
     --dry-run=client -o yaml
 )
 
+# Roll the pods when the plugin payload changes: a ConfigMap mounted into a
+# running pod is refreshed by kubelet eventually, but a checksum annotation makes
+# the update deterministic and shows up in the rollout history.
+if command -v sha256sum >/dev/null 2>&1; then
+  CHECKSUM=$(cat "$MAIN_JS" "$PKG_JSON" "$ROOT_DIR"/locales/*/translation.json 2>/dev/null | sha256sum | cut -d' ' -f1)
+else
+  CHECKSUM=$(cat "$MAIN_JS" "$PKG_JSON" "$ROOT_DIR"/locales/*/translation.json 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+fi
+
 ITEMS='{"key":"main.js","path":"main.js"},{"key":"package.json","path":"package.json"}'
 for translation in "$ROOT_DIR"/locales/*/translation.json; do
   [[ -f "$translation" ]] || continue
@@ -137,6 +146,9 @@ PATCH=$(
 {
   "spec": {
     "template": {
+      "metadata": {
+        "annotations": {"headlamp.pod-download/checksum": "$CHECKSUM"}
+      },
       "spec": {
         "volumes": [
           {"name": "$VOLUME_NAME", "configMap": {"name": "$CONFIGMAP", "items": [$ITEMS]}}
