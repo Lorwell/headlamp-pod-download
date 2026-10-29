@@ -215,10 +215,10 @@ Done.
 
   Plugin : $PLUGIN_NAME
   Served : http://127.0.0.1:$LOCAL_PORT/plugins/$PLUGIN_NAME/main.js (200)
-  Usage  : open a Pod details page and look for the "Download file" section
+  Usage  : open a Pod details page and click the download icon next to the terminal icon
 
 Notes:
-  - Changes to the ConfigMap are picked up after a Headlamp restart
+  - Changes to the ConfigMap (plugin or locales) need a Headlamp restart
     (kubectl -n $NAMESPACE rollout restart deployment/$DEPLOYMENT).
   - To remove the plugin: deploy/uninstall.sh -n $NAMESPACE
 EOF
