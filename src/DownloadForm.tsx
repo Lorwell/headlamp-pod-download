@@ -17,6 +17,7 @@ import {
   PodLike,
 } from './download';
 import { formatBytes } from './format';
+import { useT } from './i18n';
 
 export type DownloadRunner = (request: DownloadRequest) => DownloadHandle;
 
@@ -29,6 +30,7 @@ export interface DownloadFormProps {
 type Notice = { severity: 'info' | 'success' | 'error'; text: string };
 
 export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFormProps) {
+  const t = useT();
   const containers: string[] = (pod.spec?.containers ?? []).map(container => container.name);
   const [container, setContainer] = React.useState(containers[0] ?? '');
   const [path, setPath] = React.useState('');
@@ -58,7 +60,10 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
         setBusy(false);
         setNotice({
           severity: 'success',
-          text: `Saved ${result.filename} (${formatBytes(result.bytes)})`,
+          text: t('Saved {{file}} ({{size}})', {
+            file: result.filename,
+            size: formatBytes(result.bytes),
+          }),
         });
       },
       onError: message => {
@@ -66,7 +71,7 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
         setBusy(false);
         setNotice({
           severity: message === CANCEL_MESSAGE ? 'info' : 'error',
-          text: message,
+          text: t(message),
         });
       },
     });
@@ -77,15 +82,16 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
   }
 
   if (!isRunning) {
-    return <Alert severity="info">The pod must be running to download files.</Alert>;
+    return <Alert severity="info">{t('The pod must be running to download files.')}</Alert>;
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 760 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="body2" color="text.secondary">
-        Enter the absolute path of one file inside a container (up to{' '}
-        {formatBytes(MAX_DOWNLOAD_BYTES)}). The container needs a <code>base64</code> binary, and
-        your account needs <code>pods/exec</code>. Directories are not supported.
+        {t(
+          'Enter the absolute path of one file inside a container (up to {{size}}). The container needs a base64 binary and your account needs pods/exec. Directories are not supported.',
+          { size: formatBytes(MAX_DOWNLOAD_BYTES) }
+        )}
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -93,7 +99,7 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
           <TextField
             select
             size="small"
-            label="Container"
+            label={t('Container')}
             value={container}
             onChange={event => setContainer(event.target.value)}
             disabled={busy}
@@ -109,7 +115,7 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
 
         <TextField
           size="small"
-          label="File path"
+          label={t('File path')}
           placeholder="/var/log/app.log"
           value={path}
           onChange={event => setPath(event.target.value)}
@@ -119,17 +125,17 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
             }
           }}
           disabled={busy}
-          sx={{ flex: 1, minWidth: 280 }}
+          sx={{ flex: 1, minWidth: 240 }}
           inputProps={{ 'aria-label': 'File path' }}
         />
 
         {busy ? (
           <Button variant="outlined" onClick={cancel}>
-            Cancel
+            {t('Cancel')}
           </Button>
         ) : (
           <Button variant="contained" onClick={start} disabled={path.trim() === ''}>
-            Download
+            {t('Download')}
           </Button>
         )}
       </Box>
@@ -137,7 +143,9 @@ export function DownloadForm({ pod, runDownload = downloadPodFile }: DownloadFor
       {busy && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CircularProgress size={16} />
-          <Typography variant="body2">Receiving… {formatBytes(received)}</Typography>
+          <Typography variant="body2">
+            {t('Receiving… {{size}}', { size: formatBytes(received) })}
+          </Typography>
         </Box>
       )}
 

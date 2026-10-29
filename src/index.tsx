@@ -1,17 +1,16 @@
-import { registerDetailsViewSection } from '@kinvolk/headlamp-plugin/lib';
+import { registerDetailsViewHeaderActionsProcessor } from '@kinvolk/headlamp-plugin/lib';
 import React from 'react';
 import type { PodLike } from './download';
-import { DownloadSection } from './DownloadSection';
+import { DownloadAction } from './DownloadAction';
+import { insertDownloadAction } from './headerAction';
 
 /**
- * Adds a "Download file" section to every Pod details page.
- *
- * The pod object handed to the section is the Headlamp resource instance, which
- * is what carries the `exec` helper used to read the file.
+ * Adds a download icon to the Pod details header, right after the terminal.
+ * Clicking it opens a dialog where the file path is entered.
  */
-registerDetailsViewSection(({ resource }) => {
-  if (resource?.kind !== 'Pod') {
-    return null;
+registerDetailsViewHeaderActionsProcessor((resource, actions) => {
+  if (!resource || resource.kind !== 'Pod') {
+    return actions;
   }
-  return <DownloadSection pod={resource as unknown as PodLike} />;
+  return insertDownloadAction(actions, <DownloadAction pod={resource as unknown as PodLike} />);
 });

@@ -37,8 +37,15 @@ ConfigMap must exist before the Deployment rolls out.
 kubectl -n kube-system create configmap headlamp-pod-download-plugin \
   --from-file=main.js=dist/main.js \
   --from-file=package.json=package.json \
+  --from-file=en.translation.json=locales/en/translation.json \
+  --from-file=zh.translation.json=locales/zh/translation.json \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+ConfigMap keys cannot contain `/`, so the volume has to map the locale keys to
+`locales/<lang>/translation.json` paths (`items:` in
+`headlamp-deployment-patch.yaml`). Without that mapping Headlamp serves no
+translations and the plugin falls back to English.
 
 ## Updating
 

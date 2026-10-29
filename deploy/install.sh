@@ -110,12 +110,27 @@ run() {
   fi
 }
 
+LOCALES=()
+for translation in "$ROOT_DIR"/locales/*/translation.json; do
+  [[ -f "$translation" ]] || continue
+  locale=$(basename "$(dirname "$translation")")
+  LOCALES+=("--from-file=$locale.translation.json=$translation")
+done
+
 CONFIGMAP_MANIFEST=$(
   $KUBECTL -n "$NAMESPACE" create configmap "$CONFIGMAP" \
     --from-file="main.js=$MAIN_JS" \
     --from-file="package.json=$PKG_JSON" \
+    ${LOCALES[@]+"${LOCALES[@]}"} \
     --dry-run=client -o yaml
 )
+
+ITEMS='{"key":"main.js","path":"main.js"},{"key":"package.json","path":"package.json"}'
+for translation in "$ROOT_DIR"/locales/*/translation.json; do
+  [[ -f "$translation" ]] || continue
+  locale=$(basename "$(dirname "$translation")")
+  ITEMS="$ITEMS"',{"key":"'"$locale"'.translation.json","path":"locales/'"$locale"'/translation.json"}'
+done
 
 PATCH=$(
   cat <<EOF
@@ -124,7 +139,7 @@ PATCH=$(
     "template": {
       "spec": {
         "volumes": [
-          {"name": "$VOLUME_NAME", "configMap": {"name": "$CONFIGMAP"}}
+          {"name": "$VOLUME_NAME", "configMap": {"name": "$CONFIGMAP", "items": [$ITEMS]}}
         ],
         "containers": [
           {

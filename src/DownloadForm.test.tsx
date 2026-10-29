@@ -4,6 +4,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DownloadRequest, PodLike } from './download';
 import { DownloadForm } from './DownloadForm';
 
+// The real hook loads locale files through Headlamp's plugin i18n runtime, which
+// does not exist in a unit test. Keep the keys and only do the interpolation.
+vi.mock('./i18n', async importOriginal => {
+  const actual = await importOriginal<typeof import('./i18n')>();
+  return {
+    ...actual,
+    useT: () => (key: string, values?: Record<string, unknown>) =>
+      actual.interpolate(key, values),
+  };
+});
+
 function makePod(phase = 'Running'): PodLike {
   return {
     status: { phase },

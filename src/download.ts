@@ -7,7 +7,7 @@
  */
 
 import { K8s } from '@kinvolk/headlamp-plugin/lib';
-import { describeExecError, formatBytes, suggestFilename } from './format';
+import { describeExecError, suggestFilename } from './format';
 import { base64ToBytes, parseFrame } from './frames';
 
 export type PodLike = InstanceType<typeof K8s.ResourceClasses.Pod>;
@@ -186,10 +186,7 @@ export function downloadPodFile(request: DownloadRequest): DownloadHandle {
         received = Math.floor((base64.length * 3) / 4);
         onProgress?.(received);
         if (received > MAX_DOWNLOAD_BYTES) {
-          fail(
-            `File is larger than ${formatBytes(MAX_DOWNLOAD_BYTES)}. ` +
-              'Use `kubectl cp` for large files.'
-          );
+          fail('File is too large to download in the browser. Use `kubectl cp` for large files.');
         }
         return;
       }

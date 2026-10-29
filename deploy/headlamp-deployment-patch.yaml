@@ -25,3 +25,14 @@ spec:
         - name: headlamp-pod-download
           configMap:
             name: headlamp-pod-download-plugin
+            # ConfigMap keys cannot contain "/", so the locale files are mapped
+            # to their real paths here.
+            items:
+              - key: main.js
+                path: main.js
+              - key: package.json
+                path: package.json
+              - key: en.translation.json
+                path: locales/en/translation.json
+              - key: zh.translation.json
+                path: locales/zh/translation.json

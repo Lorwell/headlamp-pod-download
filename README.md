@@ -1,6 +1,6 @@
 # headlamp-pod-download
 
-A small [Headlamp](https://headlamp.dev/) plugin that adds a **Download file** section to every Pod page: type the path of a file inside a container and the browser downloads it.
+A small [Headlamp](https://headlamp.dev/) plugin that adds a **download icon to the Pod page header** (right after the terminal icon): click it, type the path of a file inside a container, and the browser downloads it.
 
 [![CI](https://github.com/Lorwell/headlamp-pod-download/actions/workflows/ci.yml/badge.svg)](https://github.com/Lorwell/headlamp-pod-download/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -11,10 +11,12 @@ Headlamp can open a shell in a container, but it cannot copy files out of it. Th
 
 ## Features
 
-- **Download file** section on the Pod details page (only for running pods).
+- **Download icon** in the Pod details header, placed right after the terminal action.
+- Clicking the icon opens a **dialog** with the container picker and the file path field; the page never navigates away.
 - Container picker when the pod has more than one container.
 - Progress indicator and a **Cancel** button while a file is streaming.
 - Clear error messages for the usual failures: missing file, permission denied, directory, distroless image without `base64`.
+- **i18n**: English and 简体中文, following Headlamp's language setting (add another locale by dropping `locales/<lang>/translation.json`).
 - Hard limits: single regular file, up to **50 MiB**.
 - No new backend and **no new RBAC**: the plugin uses `pods/exec` through Headlamp's existing API proxy, with the permissions of the logged-in user.
 
@@ -66,9 +68,10 @@ and removal.
 ## Usage
 
 1. Open **Pods** and select a running pod.
-2. Scroll to the **Download file** section.
+2. Click the download icon in the header row, next to the terminal icon.
 3. Pick the container (if there is more than one).
 4. Enter an absolute path, for example `/var/log/app.log`, and click **Download**.
+5. The file is saved by the browser; the dialog shows the received size and the result.
 
 ## Limitations
 
@@ -104,19 +107,24 @@ Project layout:
 
 ```
 src/
-  index.tsx          registers the Pod details section
-  DownloadSection.tsx  Headlamp section wrapper
+  index.tsx          registers the header action (after the terminal icon)
+  DownloadAction.tsx the icon button + MUI dialog
   DownloadForm.tsx   the form, progress and error UI
   download.ts        exec stream, limits, timeouts, Blob download
   frames.ts          websocket frame + base64 decoding (pure)
   format.ts          file names, byte sizes, error messages (pure)
+  i18n.ts            plugin translation hook (falls back to English keys)
+locales/
+  en/translation.json, zh/translation.json
 deploy/
   install.sh         ConfigMap + Deployment patch + verification
   uninstall.sh       removes both again
 ```
 
 The plugin is built with `@kinvolk/headlamp-plugin@0.14.0`; React and MUI are
-provided by Headlamp at runtime, so the bundle stays small.
+provided by Headlamp at runtime, so the bundle stays small. Locale files are
+served from `/plugins/headlamp-pod-download/locales/<lang>/translation.json`
+and are declared in `package.json` under `headlamp.i18n`.
 
 ## License
 
